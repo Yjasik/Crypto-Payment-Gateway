@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter, JetBrains_Mono, Geist } from 'next/font/google'
 import { Providers } from './providers'
 import '@/styles/globals.css'
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/cn"
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
