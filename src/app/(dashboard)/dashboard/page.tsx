@@ -1,8 +1,12 @@
+// src/app/(dashboard)/dashboard/page.tsx — Merchant dashboard
 'use client'
 
 import { useAccount, useBalance } from 'wagmi'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { TransactionTable } from '@/components/transactions/transaction-table'
+import { StatsCard } from '@/components/dashboard/stats-cards'
+import type { Transaction } from '@/components/transactions/transaction-table'
 import {
   Wallet,
   ArrowLeftRight,
@@ -13,12 +17,41 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 
+// Mock recent transactions for dashboard
+const recentTransactions: Transaction[] = [
+  {
+    id: '1',
+    hash: '0x1234...5678',
+    type: 'payment',
+    amount: '150.00',
+    token: 'USDC',
+    from: '0xabc...def',
+    to: '0x789...012',
+    status: 'completed',
+    timestamp: '2026-05-07 14:30',
+    productName: 'Premium NFT Collection',
+  },
+  {
+    id: '2',
+    hash: '0x8765...4321',
+    type: 'payment',
+    amount: '0.05',
+    token: 'ETH',
+    from: '0xdef...ghi',
+    to: '0x012...345',
+    status: 'pending',
+    timestamp: '2026-05-07 13:15',
+    productName: 'DeFi Course Access',
+  },
+]
+
 export default function DashboardPage() {
   const { address, isConnected } = useAccount()
   const { data: balance } = useBalance({ address })
 
   return (
     <div className="space-y-6">
+      {/* Page header */}
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
         <p className="text-gray-500 dark:text-gray-400">
@@ -28,71 +61,42 @@ export default function DashboardPage() {
         </p>
       </div>
 
+      {/* Stats cards — using reusable StatsCard component */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500 dark:text-gray-400">
-              Wallet Balance
-            </CardTitle>
-            <Wallet className="h-4 w-4 text-gray-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {isConnected && balance
-                ? `${Number(balance.formatted).toFixed(4)} ${balance.symbol}`
-                : '$0.00'}
-            </div>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Native token balance
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500 dark:text-gray-400">
-              Total Revenue
-            </CardTitle>
-            <TrendingUp className="h-4 w-4 text-gray-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">$0.00</div>
-            <p className="mt-1 text-xs text-green-600">+0% from last month</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500 dark:text-gray-400">
-              Transactions
-            </CardTitle>
-            <ArrowLeftRight className="h-4 w-4 text-gray-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              No transactions yet
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500 dark:text-gray-400">
-              Products
-            </CardTitle>
-            <Package className="h-4 w-4 text-gray-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              No products created
-            </p>
-          </CardContent>
-        </Card>
+        <StatsCard
+          title="Wallet Balance"
+          value={
+            isConnected && balance
+              ? `${Number(balance.formatted).toFixed(4)} ${balance.symbol}`
+              : '$0.00'
+          }
+          description="Native token balance"
+          icon={Wallet}
+        />
+        <StatsCard
+          title="Total Revenue"
+          value="$0.00"
+          description="+0% from last month"
+          icon={TrendingUp}
+          trend="up"
+        />
+        <StatsCard
+          title="Transactions"
+          value="0"
+          description="No transactions yet"
+          icon={ArrowLeftRight}
+        />
+        <StatsCard
+          title="Products"
+          value="0"
+          description="No products created"
+          icon={Package}
+        />
       </div>
 
+      {/* Quick actions + recent transactions */}
       <div className="grid gap-4 md:grid-cols-2">
+        {/* Quick actions */}
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Quick Actions</CardTitle>
@@ -130,6 +134,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
+        {/* Recent transactions — compact mode */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg">Recent Transactions</CardTitle>
@@ -142,23 +147,20 @@ export default function DashboardPage() {
             </Link>
           </CardHeader>
           <CardContent>
-            {isConnected ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <ArrowLeftRight className="mb-2 h-8 w-8 text-gray-300 dark:text-gray-600" />
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  No transactions yet
-                </p>
-                <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                  Your recent payments will appear here
-                </p>
-              </div>
-            ) : (
+            {!isConnected ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
                 <Wallet className="mb-2 h-8 w-8 text-gray-300 dark:text-gray-600" />
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   Connect wallet to view transactions
                 </p>
               </div>
+            ) : (
+              <TransactionTable
+                transactions={recentTransactions}
+                compact={true}
+                showFilters={false}
+                showPagination={false}
+              />
             )}
           </CardContent>
         </Card>
