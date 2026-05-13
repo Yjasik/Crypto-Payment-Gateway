@@ -3,19 +3,19 @@
 import { useParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { useAccount } from 'wagmi'
+import type { Hash } from 'viem'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Label } from '@/components/ui/label'
+import { PayButton } from '@/components/web3/transaction-button'
 import {
   Copy,
   Check,
   Clock,
   Shield,
   Wallet,
-  CreditCard,
   AlertCircle,
   ArrowLeft,
 } from 'lucide-react'
@@ -57,8 +57,6 @@ const mockProducts: Record<string, ProductData> = {
   },
 }
 
-type PaymentStep = 'idle' | 'confirming' | 'success' | 'error'
-
 export default function PaymentPage() {
   const params = useParams()
   const productId = params.productId as string
@@ -67,14 +65,14 @@ export default function PaymentPage() {
   // Product data
   const product = mockProducts[productId]
 
-  // State — init amount directly from product.price
+  // State
   const [selectedToken, setSelectedToken] = useState(product?.supportedTokens[0] || 'USDC')
   const [amount] = useState(product?.price || '0')
   const [copiedText, setCopiedText] = useState<string | null>(null)
-  const [paymentStep, setPaymentStep] = useState<PaymentStep>('idle')
   const [countdown, setCountdown] = useState(900)
   const [isLoading, setIsLoading] = useState(true)
-  const [isPending, setIsPending] = useState(false)
+  const [paymentComplete, setPaymentComplete] = useState(false)
+  const [txHash, setTxHash] = useState<Hash | null>(null)
 
   // Simulate loading
   useEffect(() => {
@@ -84,10 +82,10 @@ export default function PaymentPage() {
 
   // Countdown timer
   useEffect(() => {
-    if (countdown <= 0) return
+    if (countdown <= 0 || paymentComplete) return
     const timer = setInterval(() => setCountdown((prev) => prev - 1), 1000)
     return () => clearInterval(timer)
-  }, [countdown])
+  }, [countdown, paymentComplete])
 
   // Format address
   const formatAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`
@@ -116,16 +114,17 @@ export default function PaymentPage() {
     return (parseFloat(amount || '0') * (rates[selectedToken] || 1)).toFixed(6)
   }
 
-  // Handle payment
-  const handlePayment = () => {
-    setIsPending(true)
-    setPaymentStep('confirming')
-
-    // Mock payment processing
-    setTimeout(() => {
-      setIsPending(false)
-      setPaymentStep('success')
-    }, 3000)
+  // Handle payment via PayButton
+  const handlePayment = async (): Promise<Hash> => {
+    // Mock: Replace with actual contract call
+    // const hash = await processPayment(merchantId, amount, tokenAddress, decimals)
+    await new Promise((resolve) => setTimeout(resolve, 3000))
+    
+    // Mock transaction hash
+    const hash = `0x${Math.random().toString(16).slice(2, 42)}` as Hash
+    setTxHash(hash)
+    setPaymentComplete(true)
+    return hash
   }
 
   // Loading state
@@ -243,11 +242,12 @@ export default function PaymentPage() {
                   <button
                     key={token}
                     onClick={() => setSelectedToken(token)}
+                    disabled={paymentComplete}
                     className={`flex items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition-all ${
                       selectedToken === token
                         ? 'border-purple-500 bg-purple-50 text-purple-700 dark:border-purple-400 dark:bg-purple-900/20 dark:text-purple-400'
                         : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300 dark:hover:border-gray-700'
-                    }`}
+                    } ${paymentComplete ? 'cursor-not-allowed opacity-50' : ''}`}
                   >
                     {token === 'ETH' ? '🔷' : token === 'USDC' ? '💲' : '💵'}
                     {token}
@@ -257,10 +257,12 @@ export default function PaymentPage() {
             </div>
 
             {/* Countdown */}
-            <div className="flex items-center justify-center gap-2 text-sm text-amber-600 dark:text-amber-400">
-              <Clock className="h-4 w-4" />
-              <span>Rate expires in {formatCountdown(countdown)}</span>
-            </div>
+            {!paymentComplete && (
+              <div className="flex items-center justify-center gap-2 text-sm text-amber-600 dark:text-amber-400">
+                <Clock className="h-4 w-4" />
+                <span>Rate expires in {formatCountdown(countdown)}</span>
+              </div>
+            )}
 
             {/* Payment section */}
             {!isConnected ? (
@@ -271,7 +273,7 @@ export default function PaymentPage() {
                 </p>
                 <ConnectButton />
               </div>
-            ) : paymentStep === 'success' ? (
+            ) : paymentComplete ? (
               <div className="rounded-lg bg-green-50 p-6 text-center dark:bg-green-900/20">
                 <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-800">
                   <Check className="h-6 w-6 text-green-600 dark:text-green-400" />
@@ -282,29 +284,29 @@ export default function PaymentPage() {
                 <p className="mt-1 text-sm text-green-600 dark:text-green-400">
                   Transaction confirmed on blockchain
                 </p>
-                <Link href="/dashboard" className="mt-4 inline-flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700">
+                {txHash && (
+                  <p className="mt-1 font-mono text-xs text-green-500">
+                    TX: {txHash.slice(0, 10)}...{txHash.slice(-8)}
+                  </p>
+                )}
+                <Link
+                  href="/dashboard"
+                  className="mt-4 inline-flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
+                >
                   Go to Dashboard
                 </Link>
               </div>
             ) : (
-              <Button
+              <PayButton
+                amount={amount}
+                token={selectedToken}
+                onPay={handlePayment}
+                explorerUrl="https://sepolia.etherscan.io"
+                onTxSuccess={(hash) => console.log('Payment confirmed:', hash)}
+                onTxError={(error) => console.error('Payment failed:', error)}
                 className="w-full"
                 size="lg"
-                onClick={handlePayment}
-                disabled={isPending}
-              >
-                {isPending ? (
-                  <>
-                    <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    Confirming...
-                  </>
-                ) : (
-                  <>
-                    <CreditCard className="mr-2 h-5 w-5" />
-                    Pay {amount} {product.currency}
-                  </>
-                )}
-              </Button>
+              />
             )}
 
             {/* Connected wallet info */}

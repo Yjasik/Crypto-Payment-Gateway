@@ -41,3 +41,9 @@ yarn-error.log*
 next-env.d.ts
 .history/
 .env.local
+
+# Foundry
+contracts/cache/
+contracts/out/
+contracts/broadcast/
+contracts/lib/

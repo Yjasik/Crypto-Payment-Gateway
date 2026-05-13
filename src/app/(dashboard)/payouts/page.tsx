@@ -1,8 +1,8 @@
-// src/app/(dashboard)/payouts/page.tsx — Payout management page
 'use client'
 
 import { useState } from 'react'
 import { useAccount, useBalance } from 'wagmi'
+import type { Hash } from 'viem'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -32,6 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { WithdrawButton } from '@/components/web3/transaction-button'
 import {
   ArrowUpRight,
   Wallet,
@@ -113,12 +114,16 @@ export default function PayoutsPage() {
     return variants[status]
   }
 
-  // Handle payout request
-  const handlePayoutRequest = () => {
-    console.log('Requesting payout:', { amount: payoutAmount, token: payoutToken })
-    // TODO: Call ContractService.withdrawFunds()
+  // Handle payout via WithdrawButton
+  const handlePayout = async (): Promise<Hash> => {
+    // Mock: Replace with ContractService.withdrawFunds()
+    // const receipt = await contractService.withdrawFunds(payoutAmount, payoutToken, decimals)
+    // return receipt.hash
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+    const hash = `0x${Math.random().toString(16).slice(2, 42)}` as Hash
     setIsCreateOpen(false)
     setPayoutAmount('')
+    return hash
   }
 
   // Calculate fee (0.5%)
@@ -148,7 +153,7 @@ export default function PayoutsPage() {
         {/* Request payout button */}
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger className="inline-flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700">
-           <ArrowUpRight className="h-4 w-4" />
+            <ArrowUpRight className="h-4 w-4" />
             Request Payout
           </DialogTrigger>
           <DialogContent className="sm:max-w-[450px]">
@@ -222,10 +227,15 @@ export default function PayoutsPage() {
               <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handlePayoutRequest} disabled={!payoutAmount}>
-                <ArrowUpRight className="mr-2 h-4 w-4" />
-                Request Payout
-              </Button>
+              <WithdrawButton
+                amount={payoutAmount}
+                token={payoutToken || 'USDC'}
+                onWithdraw={handlePayout}
+                explorerUrl="https://sepolia.etherscan.io"
+                disabled={!payoutAmount}
+                onTxSuccess={(hash) => console.log('Withdrawal confirmed:', hash)}
+                onTxError={(error) => console.error('Withdrawal failed:', error)}
+              />
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -317,18 +327,18 @@ export default function PayoutsPage() {
             </div>
           ) : filteredPayouts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
-                <History className="mb-3 h-12 w-12 text-gray-300 dark:text-gray-600" />
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                    No payouts yet
-                </h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    Request your first payout to withdraw earnings
-                </p>
-                <Button className="mt-4" onClick={() => setIsCreateOpen(true)}>
-                    <ArrowUpRight className="mr-2 h-4 w-4" />
-                    Request Payout
-                </Button>
-                </div>
+              <History className="mb-3 h-12 w-12 text-gray-300 dark:text-gray-600" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                No payouts yet
+              </h3>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Request your first payout to withdraw earnings
+              </p>
+              <Button className="mt-4" onClick={() => setIsCreateOpen(true)}>
+                <ArrowUpRight className="mr-2 h-4 w-4" />
+                Request Payout
+              </Button>
+            </div>
           ) : (
             <Table>
               <TableHeader>

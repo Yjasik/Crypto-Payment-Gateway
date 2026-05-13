@@ -1,4 +1,3 @@
-// src/app/(dashboard)/transactions/page.tsx — Transaction history page
 'use client'
 
 import { useAccount } from 'wagmi'

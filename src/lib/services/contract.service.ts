@@ -1,11 +1,10 @@
-
 import { readContract, writeContract, waitForTransactionReceipt } from '@wagmi/core'
-import { parseEther, parseUnits, formatEther, formatUnits, type Address, type Hash } from 'viem'
+import { parseEther, parseUnits, type Address, type Hash } from 'viem'
 import { config } from '@/lib/config/wagmi'
 import { CONTRACT_ADDRESSES, GAS_LIMITS, PLATFORM_FEE_BPS } from '@/lib/constants/contracts'
 import { TOKEN_ADDRESSES } from '@/lib/constants/contracts'
 
-// Payment Gateway ABI — update after Foundry compilation
+// Payment Gateway ABI
 const paymentGatewayAbi = [
   {
     type: 'function',
@@ -81,7 +80,7 @@ const paymentGatewayAbi = [
   },
 ] as const
 
-// ERC20 ABI minimal — for token approvals
+// ERC20 ABI minimal — needed for approvals
 const erc20Abi = [
   {
     type: 'function',
@@ -136,6 +135,13 @@ export interface PaymentDetails {
   timestamp: bigint
 }
 
+// Allowance info for ApproveButton
+export interface AllowanceInfo {
+  current: bigint
+  required: bigint
+  isSufficient: boolean
+}
+
 // Contract service class
 export class ContractService {
   private chainId: number
@@ -145,7 +151,7 @@ export class ContractService {
   }
 
   // Get contract address for current chain
-  private getContractAddress(): Address {
+  getContractAddress(): Address {
     const address = CONTRACT_ADDRESSES[this.chainId]
     if (!address || address === '0x0000000000000000000000000000000000000000') {
       throw new Error(`Contract not deployed on chain ${this.chainId}`)
@@ -154,7 +160,7 @@ export class ContractService {
   }
 
   // Get token address for current chain
-  private getTokenAddress(token: string): Address {
+  getTokenAddress(token: string): Address {
     const tokenMap = TOKEN_ADDRESSES[this.chainId]
     if (!tokenMap || !tokenMap[token]) {
       throw new Error(`Token ${token} not supported on chain ${this.chainId}`)
@@ -162,21 +168,18 @@ export class ContractService {
     return tokenMap[token] as Address
   }
 
-  // Approve token spending for contract
-  async approveToken(
+  // ============================================
+  // Allowance methods (for ApproveButton)
+  // ============================================
+
+  // Get current token allowance
+  async getAllowance(
     tokenSymbol: string,
-    amount: bigint,
     ownerAddress: Address
-  ): Promise<TransactionResult> {
+  ): Promise<bigint> {
     const tokenAddress = this.getTokenAddress(tokenSymbol)
     const contractAddress = this.getContractAddress()
 
-    // Skip approval for native ETH
-    if (tokenSymbol === 'ETH') {
-      throw new Error('ETH does not require approval')
-    }
-
-    // Check current allowance
     const allowance = await readContract(config, {
       address: tokenAddress,
       abi: erc20Abi,
@@ -184,9 +187,35 @@ export class ContractService {
       args: [ownerAddress, contractAddress],
     })
 
-    if (allowance && allowance >= amount) {
-      console.log('Allowance sufficient, skipping approval')
-      return { hash: '0x0' as Hash } // Already approved
+    return allowance as bigint
+  }
+
+  // Check if allowance is sufficient
+  async checkAllowance(
+    tokenSymbol: string,
+    ownerAddress: Address,
+    requiredAmount: bigint
+  ): Promise<AllowanceInfo> {
+    const current = await this.getAllowance(tokenSymbol, ownerAddress)
+
+    return {
+      current,
+      required: requiredAmount,
+      isSufficient: current >= requiredAmount,
+    }
+  }
+
+  // Approve token spending (returns hash for ApproveButton)
+  async approveToken(
+    tokenSymbol: string,
+    amount: bigint
+  ): Promise<TransactionResult> {
+    const tokenAddress = this.getTokenAddress(tokenSymbol)
+    const contractAddress = this.getContractAddress()
+
+    // Skip for native ETH
+    if (tokenSymbol === 'ETH') {
+      throw new Error('ETH does not require approval')
     }
 
     // Send approval transaction
@@ -204,6 +233,10 @@ export class ContractService {
     return { hash, receipt }
   }
 
+  // ============================================
+  // Payment methods (for PayButton)
+  // ============================================
+
   // Process payment for a product
   async processPayment(
     merchantId: string,
@@ -215,12 +248,12 @@ export class ContractService {
     const tokenAddress = this.getTokenAddress(tokenSymbol)
 
     // Parse amount to blockchain units
-    const parsedAmount = tokenSymbol === 'ETH' 
+    const parsedAmount = tokenSymbol === 'ETH'
       ? parseEther(amount)
       : parseUnits(amount, decimals)
 
+    // Native ETH payment
     if (tokenSymbol === 'ETH') {
-      // Native ETH payment
       const hash = await writeContract(config, {
         address: contractAddress,
         abi: paymentGatewayAbi,
@@ -247,6 +280,10 @@ export class ContractService {
     return { hash, receipt }
   }
 
+  // ============================================
+  // Withdrawal methods (for WithdrawButton)
+  // ============================================
+
   // Withdraw funds as merchant
   async withdrawFunds(
     amount: string,
@@ -271,6 +308,10 @@ export class ContractService {
     const receipt = await waitForTransactionReceipt(config, { hash })
     return { hash, receipt }
   }
+
+  // ============================================
+  // Read methods
+  // ============================================
 
   // Get merchant balance
   async getMerchantBalance(merchantAddress: Address): Promise<bigint> {
@@ -328,6 +369,10 @@ export class ContractService {
     return { hash, receipt }
   }
 
+  // ============================================
+  // Utility methods
+  // ============================================
+
   // Calculate platform fee
   calculateFee(amount: bigint): bigint {
     return (amount * BigInt(PLATFORM_FEE_BPS)) / BigInt(10000)
@@ -338,9 +383,28 @@ export class ContractService {
     const fee = this.calculateFee(amount)
     return amount - fee
   }
+
+  // Get token decimals
+  async getTokenDecimals(tokenSymbol: string): Promise<number> {
+    try {
+      const tokenAddress = this.getTokenAddress(tokenSymbol)
+      const decimals = await readContract(config, {
+        address: tokenAddress,
+        abi: erc20Abi,
+        functionName: 'decimals',
+      })
+      return decimals as number
+    } catch {
+      return 18 // Default
+    }
+  }
 }
 
-// Get token decimals
+// ============================================
+// Standalone utility functions
+// ============================================
+
+// Get token decimals (standalone)
 export async function getTokenDecimals(tokenAddress: Address): Promise<number> {
   try {
     const decimals = await readContract(config, {
@@ -350,11 +414,11 @@ export async function getTokenDecimals(tokenAddress: Address): Promise<number> {
     })
     return decimals as number
   } catch {
-    return 18 // Default to 18 decimals
+    return 18
   }
 }
 
-// Get token balance
+// Get token balance (standalone)
 export async function getTokenBalance(
   tokenAddress: Address,
   ownerAddress: Address
