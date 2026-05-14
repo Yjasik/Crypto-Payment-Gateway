@@ -3,82 +3,10 @@ import { parseEther, parseUnits, type Address, type Hash } from 'viem'
 import { config } from '@/lib/config/wagmi'
 import { CONTRACT_ADDRESSES, GAS_LIMITS, PLATFORM_FEE_BPS } from '@/lib/constants/contracts'
 import { TOKEN_ADDRESSES } from '@/lib/constants/contracts'
+import CryptoPaymentGatewayAbi from '@/lib/abi/CryptoPaymentGateway.json'
 
-// Payment Gateway ABI
-const paymentGatewayAbi = [
-  {
-    type: 'function',
-    name: 'processPayment',
-    inputs: [
-      { name: 'merchantId', type: 'string', internalType: 'string' },
-      { name: 'amount', type: 'uint256', internalType: 'uint256' },
-      { name: 'tokenAddress', type: 'address', internalType: 'address' },
-    ],
-    outputs: [{ name: '', type: 'bytes32', internalType: 'bytes32' }],
-    stateMutability: 'payable',
-  },
-  {
-    type: 'function',
-    name: 'withdrawFunds',
-    inputs: [
-      { name: 'amount', type: 'uint256', internalType: 'uint256' },
-      { name: 'tokenAddress', type: 'address', internalType: 'address' },
-    ],
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
-    name: 'getMerchantBalance',
-    inputs: [{ name: 'merchantAddress', type: 'address', internalType: 'address' }],
-    outputs: [{ name: '', type: 'uint256', internalType: 'uint256' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    name: 'getTransactionDetails',
-    inputs: [{ name: 'txId', type: 'bytes32', internalType: 'bytes32' }],
-    outputs: [
-      { name: 'merchantId', type: 'string', internalType: 'string' },
-      { name: 'amount', type: 'uint256', internalType: 'uint256' },
-      { name: 'token', type: 'address', internalType: 'address' },
-      { name: 'payer', type: 'address', internalType: 'address' },
-      { name: 'status', type: 'uint8', internalType: 'uint8' },
-      { name: 'timestamp', type: 'uint256', internalType: 'uint256' },
-    ],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    name: 'registerMerchant',
-    inputs: [
-      { name: 'merchantId', type: 'string', internalType: 'string' },
-      { name: 'payoutAddress', type: 'address', internalType: 'address' },
-    ],
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'event',
-    name: 'PaymentReceived',
-    inputs: [
-      { name: 'txId', type: 'bytes32', indexed: true },
-      { name: 'merchantId', type: 'string', indexed: true },
-      { name: 'payer', type: 'address', indexed: true },
-      { name: 'amount', type: 'uint256', indexed: false },
-      { name: 'token', type: 'address', indexed: false },
-    ],
-  },
-  {
-    type: 'event',
-    name: 'WithdrawalProcessed',
-    inputs: [
-      { name: 'merchantId', type: 'string', indexed: true },
-      { name: 'amount', type: 'uint256', indexed: false },
-      { name: 'token', type: 'address', indexed: false },
-    ],
-  },
-] as const
+
+const paymentGatewayAbi = CryptoPaymentGatewayAbi.abi || CryptoPaymentGatewayAbi
 
 // ERC20 ABI minimal — needed for approvals
 const erc20Abi = [

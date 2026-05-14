@@ -12,7 +12,7 @@ interface ChainMetadata {
 // Contract addresses — update after deployment
 export const CONTRACT_ADDRESSES: Record<number, Address> = {
   [mainnet.id]: '0x0000000000000000000000000000000000000000', // TODO: Deploy to mainnet
-  [sepolia.id]: '0x0000000000000000000000000000000000000000', // TODO: Deploy to Sepolia
+  [sepolia.id]: '0x13adB44a1d7897EaAcEF7Ece3467E0d81eD7810B',
   [polygon.id]: '0x0000000000000000000000000000000000000000', // TODO: Deploy to Polygon
 }
 

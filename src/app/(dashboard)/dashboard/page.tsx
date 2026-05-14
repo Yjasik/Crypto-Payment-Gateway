@@ -1,9 +1,9 @@
-// src/app/(dashboard)/dashboard/page.tsx — Merchant dashboard
 'use client'
 
-import { useAccount, useBalance } from 'wagmi'
+import { useAccount, useChainId } from 'wagmi'
+import { formatEther, createPublicClient, http } from 'viem'
+import { sepolia } from 'wagmi/chains'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { TransactionTable } from '@/components/transactions/transaction-table'
 import { StatsCard } from '@/components/dashboard/stats-cards'
 import type { Transaction } from '@/components/transactions/transaction-table'
@@ -14,63 +14,80 @@ import {
   TrendingUp,
   ArrowUpRight,
   Plus,
+  RefreshCw,
 } from 'lucide-react'
 import Link from 'next/link'
+import { useCallback, useState } from 'react'
 
-// Mock recent transactions for dashboard
-const recentTransactions: Transaction[] = [
-  {
-    id: '1',
-    hash: '0x1234...5678',
-    type: 'payment',
-    amount: '150.00',
-    token: 'USDC',
-    from: '0xabc...def',
-    to: '0x789...012',
-    status: 'completed',
-    timestamp: '2026-05-07 14:30',
-    productName: 'Premium NFT Collection',
-  },
-  {
-    id: '2',
-    hash: '0x8765...4321',
-    type: 'payment',
-    amount: '0.05',
-    token: 'ETH',
-    from: '0xdef...ghi',
-    to: '0x012...345',
-    status: 'pending',
-    timestamp: '2026-05-07 13:15',
-    productName: 'DeFi Course Access',
-  },
-]
+const recentTransactions: Transaction[] = []
 
 export default function DashboardPage() {
   const { address, isConnected } = useAccount()
-  const { data: balance } = useBalance({ address })
+  const chainId = useChainId()
+  const [ethBalance, setEthBalance] = useState('0.00')
+  const [isLoadingBalance, setIsLoadingBalance] = useState(false)
+  const [lastFetched, setLastFetched] = useState<string | null>(null)
+
+  // Fetch balance — called manually or on button click
+  const fetchBalance = useCallback(async () => {
+    if (!address) return
+
+    setIsLoadingBalance(true)
+
+    try {
+      const client = createPublicClient({
+        chain: sepolia,
+        transport: http(
+          process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL ||
+            'https://sepolia.gateway.tenderly.co'
+        ),
+      })
+
+      const bal = await client.getBalance({ address: address as `0x${string}` })
+      const formatted = formatEther(bal)
+      setEthBalance(Number(formatted).toFixed(4))
+      setLastFetched(address)
+    } catch (err) {
+      console.error('Failed to fetch balance:', err)
+      setEthBalance('Error')
+    } finally {
+      setIsLoadingBalance(false)
+    }
+  }, [address])
+
+  // Auto-fetch on first connect
+  if (address && isConnected && lastFetched !== address) {
+    fetchBalance()
+  }
+
+  const formatAddress = (addr: string) =>
+    `${addr.slice(0, 6)}...${addr.slice(-4)}`
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
         <p className="text-gray-500 dark:text-gray-400">
           {isConnected
-            ? `Connected: ${address?.slice(0, 6)}...${address?.slice(-4)}`
+            ? `Connected: ${formatAddress(address!)}`
             : 'Connect your wallet to view dashboard'}
         </p>
+        {isConnected && chainId !== sepolia.id && (
+          <p className="mt-2 text-sm text-amber-600 dark:text-amber-400">
+            ⚠️ Switch to Sepolia network (current: {chainId})
+          </p>
+        )}
       </div>
 
-      {/* Stats cards — using reusable StatsCard component */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatsCard
           title="Wallet Balance"
           value={
-            isConnected && balance
-              ? `${Number(balance.formatted).toFixed(4)} ${balance.symbol}`
-              : '$0.00'
+            isLoadingBalance
+              ? 'Loading...'
+              : `${ethBalance} ETH`
           }
-          description="Native token balance"
+          description="Sepolia testnet"
           icon={Wallet}
         />
         <StatsCard
@@ -94,9 +111,7 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Quick actions + recent transactions */}
       <div className="grid gap-4 md:grid-cols-2">
-        {/* Quick actions */}
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Quick Actions</CardTitle>
@@ -104,6 +119,14 @@ export default function DashboardPage() {
           <CardContent className="space-y-3">
             {isConnected ? (
               <>
+                <button
+                  onClick={fetchBalance}
+                  disabled={isLoadingBalance}
+                  className="flex w-full items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-gray-800 disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isLoadingBalance ? 'animate-spin' : ''}`} />
+                  Refresh Balance
+                </button>
                 <Link
                   href="/products"
                   className="flex w-full items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-gray-800"
@@ -134,7 +157,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Recent transactions — compact mode */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg">Recent Transactions</CardTitle>
@@ -152,6 +174,16 @@ export default function DashboardPage() {
                 <Wallet className="mb-2 h-8 w-8 text-gray-300 dark:text-gray-600" />
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   Connect wallet to view transactions
+                </p>
+              </div>
+            ) : recentTransactions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <ArrowLeftRight className="mb-2 h-8 w-8 text-gray-300 dark:text-gray-600" />
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  No transactions yet
+                </p>
+                <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                  Your payments will appear here
                 </p>
               </div>
             ) : (
